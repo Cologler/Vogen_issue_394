@@ -1,41 +1,47 @@
-﻿// See https://aka.ms/new-console-template for more information
-
+﻿using Vogen;
 using System.Diagnostics;
-
 using Vogen_issue_394;
+
+[assembly: VogenDefaults(debuggerAttributes: DebuggerAttributeGeneration.Basic)]
 
 try
 {
-    using var ctx = new SomeDbContext();
-    ctx.SomeEntities.Add(new());
-    ctx.SaveChanges();
-    Debug.Assert(false);
+    addAndSave(10);
+    addAndSave(10);
+
+    printItems();
 }
-catch (Vogen.ValueObjectValidationException)
+catch (ValueObjectValidationException)
 {
     // should not throw for unset id
     Debug.Assert(true);
 }
 
-try
+static void addAndSave(int amount)
 {
-    using var ctx = new SomeDbContext();
-    ctx.SomeEntities.Add(new SomeEntity
+    using var context = new SomeDbContext();
+
+    for (int i = 0; i < amount; i++)
     {
-        SomeId = SomeId.Unset
-    });
-    ctx.SomeEntities.Add(new SomeEntity
-    {
-        SomeId = SomeId.Unset
-    });
-    ctx.SaveChanges();
-    Debug.Assert(false);
-}
-catch (InvalidOperationException)
-{
-    // should allow add entity
-    Debug.Assert(true);
+        var entity = new SomeEntity
+        {
+            Name = Name.From("Fred # " + i),
+            Age = Age.From(42 + i)
+        };
+
+        context.SomeEntities.Add(entity);
+    }
+
+    context.SaveChanges();
 }
 
-Debug.Assert(true);
+static void printItems()
+{
+    using var ctx = new SomeDbContext();
+
+    var entities = ctx.SomeEntities.ToList();
+    Console.WriteLine(string.Join(Environment.NewLine, entities.Select(e => $"{e.Id.Value} {e.Name} {e.Age}")));
+
+    Console.WriteLine("Done");
+}
 

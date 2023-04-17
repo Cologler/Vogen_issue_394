@@ -1,8 +1,6 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-
-using Microsoft.EntityFrameworkCore;
-
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.ValueGeneration;
 using Vogen;
 
 namespace Vogen_issue_394;
@@ -11,25 +9,72 @@ internal class SomeDbContext : DbContext
 {
     public DbSet<SomeEntity> SomeEntities { get; set; } = default!;
 
+    // you can use this method explicitly when creating your entities, or use SomeIdValueGenerator as shown below
+    // public int GetNextMyEntityId()
+    // {
+    //     var maxLocalId = SomeEntities.Local.Any() ? SomeEntities.Local.Max(e => e.Id.Value) : 0;
+    //     var maxSavedId = SomeEntities.Any() ? SomeEntities.Max(e => e.Id.Value) : 0;
+    //     return Math.Max(maxLocalId, maxSavedId) + 1;
+    // }
+    
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        builder.Entity<SomeEntity>(b =>
+            {
+                b.HasKey(x => x.Id);
+                b.Property(e => e.Id).HasValueGenerator<SomeIdValueGenerator>();
+                b.Property(e => e.Id).HasConversion(new SomeId.EfCoreValueConverter());
+                b.Property(e => e.Name).HasConversion(new Name.EfCoreValueConverter());
+            });
+    }
+    
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseInMemoryDatabase("SomeDB");
     }
+}
 
-    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+internal class SomeIdValueGenerator : ValueGenerator<SomeId>
+{
+    public override SomeId Next(EntityEntry entry)
     {
-        configurationBuilder
-            .Properties<SomeId>()
-            .HaveConversion<SomeId.EfCoreValueConverter>();
+        var entities = ((SomeDbContext)entry.Context).SomeEntities;
+        
+        var next = Math.Max(maxFrom(entities.Local), maxFrom(entities)) + 1;
+        
+        return SomeId.From(next);
+
+        static int maxFrom(IEnumerable<SomeEntity> es)
+        {
+            return es.Any() ? es.Max(e => e.Id.Value) : 0;
+        }
     }
+
+    public override bool GeneratesTemporaryValues => false;
 }
 
 [ValueObject(conversions: Conversions.EfCoreValueConverter)]
-[Instance("Unset", 0)]
-public partial struct SomeId { }
+public partial class SomeId
+{
+}
+
+// no converter needed because it's a struct of a support type
+[ValueObject]
+public partial struct Age
+{
+}
+
+// converter needed because it's a class
+[ValueObject<string>(conversions: Conversions.EfCoreValueConverter)]
+[Instance("NotSet", "[NOT_SET]")]
+public partial class Name
+{
+}
+
 
 public class SomeEntity
 {
-    [Key, DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public SomeId SomeId { get; set; }
+    public SomeId Id { get; set; } = null!; // must be null in order for EF core to generate a value
+    public Name Name { get; set; } = Name.NotSet;
+    public Age Age { get; set; }
 }
