@@ -23,9 +23,8 @@ internal class SomeDbContext : DbContext
             {
                 b.HasKey(x => x.Id);
                 b.Property(e => e.Id).HasValueGenerator<SomeIdValueGenerator>();
-                b.Property(e => e.Id).HasConversion(
-                    v => v.Value,
-                    v => SomeId.From(v));
+                b.Property(e => e.Id).HasConversion(new SomeId.EfCoreValueConverter());
+                b.Property(e => e.Name).HasConversion(new Name.EfCoreValueConverter());
             });
     }
     
@@ -54,10 +53,21 @@ internal class SomeIdValueGenerator : ValueGenerator<SomeId>
     public override bool GeneratesTemporaryValues => false;
 }
 
-[ValueObject]
-//[ValueObject(conversions: Conversions.EfCoreValueConverter)]
-[Instance("Unset", -1)]
+[ValueObject(conversions: Conversions.EfCoreValueConverter)]
 public partial class SomeId
+{
+}
+
+// no converter needed because it's a struct of a support type
+[ValueObject]
+public partial struct Age
+{
+}
+
+// converter needed because it's a class
+[ValueObject<string>(conversions: Conversions.EfCoreValueConverter)]
+[Instance("NotSet", "[NOT_SET]")]
+public partial class Name
 {
 }
 
@@ -65,6 +75,6 @@ public partial class SomeId
 public class SomeEntity
 {
     public SomeId Id { get; set; } = null!; // must be null in order for EF core to generate a value
-    public string Name { get; set; } = string.Empty;
-    public int Age { get; set; }
+    public Name Name { get; set; } = Name.NotSet;
+    public Age Age { get; set; }
 }

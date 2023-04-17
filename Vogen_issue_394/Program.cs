@@ -25,8 +25,8 @@ static void addAndSave(int amount)
     {
         var entity = new SomeEntity
         {
-            Name = "Fred # " + i,
-            Age = 42 + i
+            Name = Name.From("Fred # " + i),
+            Age = Age.From(42 + i)
         };
 
         context.SomeEntities.Add(entity);
